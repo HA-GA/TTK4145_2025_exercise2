@@ -1,40 +1,87 @@
 package main
 
 import (
-    "fmt"
-    "net"
-    "bufio"
-    "os"
+	"fmt"
+	"log"
+	"net"
 )
 
 func main() {
-    serverAddr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:33546")
-    conn, _ := net.DialTCP("tcp", nil, serverAddr)
-    defer conn.Close()
+	ServerAddr, _ := net.ResolveTCPAddr("tcp", "10.100.23.204:33546")
+	ClientAddr, _ := net.ResolveTCPAddr("tcp", "10.100.23.37:30027")
 
-    fmt.Println("Connected to server:", serverAddr.String())
+	conn, _ := net.DialTCP("tcp", nil, ServerAddr)
+	defer conn.Close()
 
-    reader := bufio.NewReader(conn)
-    greeting, _ := reader.ReadString('\n')
-    fmt.Print("Server says: ", greeting)
+	listener, _ := net.ListenTCP("tcp", ClientAddr)
+	defer listener.Close()
 
-    consoleReader := bufio.NewReader(os.Stdin)
-    for {
-        fmt.Print("Enter message (type 'quit' to exit): ")
-        input, _ := consoleReader.ReadString('\n')
-        if input == "quit\n" {
-            fmt.Println("Closing connection.")
-            return
-        }
+	go sendConnection(conn)
+	go acceptConnection(listener)
 
+	select {}
 
-        conn.Write([]byte(input))
+}
 
-        response, err := reader.ReadString('\n')
-        if err != nil {
-            fmt.Println("Server closed the connection.")
-            return
-        }
-        fmt.Print("Server response: ", response)
-    }
+func sendConnection(conn *net.TCPConn) {
+	fmt.Println("Server has connected")
+
+	buffer := make([]byte, 1024)
+	message := "Connect to: 10.100.23.37:30027"
+	copy(buffer, message)
+	_, err := conn.Write([]byte(buffer))
+	if err != nil {
+		fmt.Println("Error with sending message")
+		return
+	}
+
+	buffer2 := make([]byte, 1024)
+	n, err := conn.Read(buffer2)
+	if err != nil {
+		fmt.Println("Error with reading message")
+		return
+	}
+
+	fmt.Printf("Received: ", string(buffer2[:n]))
+
+	fmt.Println("Message sendt to server", message)
+}
+
+func acceptConnection(listener *net.TCPListener) {
+
+	accept, err := listener.Accept()
+
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	defer accept.Close()
+	acceptMessage := make([]byte, 1024)
+
+	_, err2 := accept.Read(acceptMessage)
+	if err2 != nil {
+		fmt.Printf("Error with receiving accepte message")
+		return
+	}
+
+	fmt.Printf("accept message: ", string(acceptMessage))
+
+	buffer := make([]byte, 1024)
+	message := "\n\nhei hei\000"
+	copy(buffer, message)
+
+	_, err = accept.Write([]byte(buffer))
+	if err != nil {
+		fmt.Println("Error with sending message")
+		return
+	}
+
+	buffer2 := make([]byte, 1024)
+	n, err := accept.Read(buffer2)
+	if err != nil {
+		fmt.Println("Error with reading message")
+		return
+	}
+	fmt.Printf("Received: ", string(buffer2[:n]))
+
 }
